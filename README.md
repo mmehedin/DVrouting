@@ -24,3 +24,12 @@ Run the code:
 
 All:
 clear && make clean && make &&  ./setInterfaces
+
+Ports cleanup MacOS:
+
+kill:
+sudo lsof -n -i UDP:44445 | grep 44445 | awk '{ print $2 }' | xargs kill
+
+list:
+lsof -Pn -i4
+sudo lsof -i UDP | grep 44445
