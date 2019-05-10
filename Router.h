@@ -16,6 +16,7 @@
 #include "Edge.h"
 #include "routetable.h"
 #include <map>
+#include <set>
 using namespace std;
 
 string freader(string f);
@@ -66,12 +67,15 @@ class Router
 			this->parameters.myRouterIPAddress = ip;
 			this->parameters.myRouterName = name;
 		}
+		vector<std::string> parseMessage (unsigned char[]);
 		void printRouterInfo();
+
 		int start_sender_router(void);//client
 		int start_receiver_router(void);
 		void updateCost(std::map<string, RouteTableValue> rt){
 
 		};
+
 
 	};
 

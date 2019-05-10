@@ -8,6 +8,7 @@
 #include "Router.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <netdb.h>
 #include <sys/socket.h>
@@ -15,12 +16,19 @@
 #include <arpa/inet.h>
 #include <iostream>
 
+//----parser
+#include <string>
+#include <sstream>
+#include <algorithm>
+#include <iterator>
+#include <vector>
 #define BUFLEN 2048
-#define MSGS 5	/* number of messages to send */
+//#define MSGS 5	/* number of messages to send */
 using namespace std;
 
 int Router::start_sender_router(void) //client
 {
+	int MSGS = this->parameters.routingTable.size();
 	struct sockaddr_in myaddr, remaddr;
 	unsigned int fd, i, slen=sizeof(remaddr);
 	char buf[BUFLEN];	/* message buffer */
@@ -40,19 +48,42 @@ int Router::start_sender_router(void) //client
 	myaddr.sin_family = AF_INET;
 	//std::cout << "myaddr" << htonl(INADDR_ANY)<<endl;
 
-	struct sockaddr_in sa;
-		char str[INET_ADDRSTRLEN];
-		// store this IP address in sa:
-		inet_pton(AF_INET, (char *)this->parameters.myRouterIPAddress.c_str(), &(sa.sin_addr));
-		myaddr.sin_addr.s_addr = sa.sin_addr.s_addr;
+	//struct sockaddr_in sa;
+	//char str[INET_ADDRSTRLEN];
+	// store this IP address in sa:
+	//inet_pton(AF_INET, (char *)this->parameters.myRouterIPAddress.c_str(), &(sa.sin_addr));
+	//myaddr.sin_addr.s_addr = sa.sin_addr.s_addr;
 
-	//myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	//inet_pton(AF_INET, (char *)SERVICE_PORT, &(sa.sin_port));
 	myaddr.sin_port = htons(0);
+	//myaddr.sin_port = sa.sin_port;//htons(0);
 
 	if (bind(fd, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0) {
 		perror("bind failed");
 		return 0;
 	}
+	//Failing while trying to set the broadcast option
+	//char broadcast = '1';
+
+
+
+	//     This option is needed on the socket in order to be able to receive broadcast messages
+
+	//   If not set the receiver will not receive broadcast messages in the local network.
+
+	//    if(setsockopt(fd,SOL_SOCKET,SO_BROADCAST,&broadcast,sizeof(broadcast)) < 0)
+
+	//    {
+
+	 //       cout<<"Error in setting Broadcast option";
+
+	 //       close(fd);
+
+	 //       return 0;
+
+	  //  }
+
 
 	/* now define remaddr, the address to whom we want to send messages */
 	/* For convenience, the host address is expressed as a numeric IP address */
@@ -68,9 +99,11 @@ int Router::start_sender_router(void) //client
 
 	/* now let's send the messages */
 	this->parameters.sending=true;
-	for (i=0; i < MSGS; i++) {
+	//for (i=0; i < MSGS; i++) {
+	for (auto const& [key, val] : this->parameters.routingTable){
 		printf("Sending packet %d to %s port %d\n", i, server, SERVICE_PORT);
-		sprintf(buf, "This is packet %d", i);
+		//sprintf(buf, "This is packet %d", i);
+		sprintf(buf, "%s %s %d",val.destination.c_str(), val.nextNode.c_str(), val.cost); //destination nextHop cost
 		if (sendto(fd, buf, strlen(buf), 0, (struct sockaddr *)&remaddr, slen)==-1) {
 			perror("sendto");
 			exit(1);
@@ -113,11 +146,12 @@ int Router::start_receiver_router(void) //server
 	//struct in_addr* ipAddress;
 
 	//ipAddress = (struct in_addr*)this->parameters.myRouterIPAddress;//hostp->h_addr_list[0];
-	struct sockaddr_in sa;
-	char str[INET_ADDRSTRLEN];
+	//struct sockaddr_in sa;
+	//char str[INET_ADDRSTRLEN];
 	// store this IP address in sa:
-	inet_pton(AF_INET, (char *)this->parameters.myRouterIPAddress.c_str(), &(sa.sin_addr));
-	myaddr.sin_addr.s_addr = sa.sin_addr.s_addr;//inet_addr(t);//;htonl(INADDR_ANY);
+	//inet_pton(AF_INET, (char *)this->parameters.myRouterIPAddress.c_str(), &(sa.sin_addr));
+	//myaddr.sin_addr.s_addr = sa.sin_addr.s_addr;//inet_addr(t);//;htonl(INADDR_ANY);
+	myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	myaddr.sin_port = htons(SERVICE_PORT);
 
 	if (bind(fd, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0) {
@@ -134,6 +168,7 @@ int Router::start_receiver_router(void) //server
 		if (recvlen > 0) {
 			buf[recvlen] = 0;
 			printf("received message: \"%s\" (%d bytes)\n", buf, recvlen);
+			vector<std::string> current = parseMessage(buf);
 		}
 		else
 			printf("uh oh - something went wrong!\n");
@@ -144,11 +179,26 @@ int Router::start_receiver_router(void) //server
 	}
 	/* never exits */
 	this->parameters.receiving=false;
+};
+
+
+
+vector<std::string> Router::parseMessage (unsigned char buf[]){
+	memset(buf, 0, sizeof(buf));
+	stringstream str;
+	str<< buf;
+	//string str =buf;
+	//strcpy(buf, str);
+	//std::string str=buf;
+	istringstream iss(str.str());
+	//set<std::string> tokens;
+	vector<std::string> tokens;
+	copy(istream_iterator<string>(iss),
+	     istream_iterator<string>(),
+	     back_inserter(tokens));
+		 //ostream_iterator<string>(cout, "\n"));
+	return tokens;
 }
-
-
-
-
 
 
 void Router::printRouterInfo(){

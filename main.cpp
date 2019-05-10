@@ -33,6 +33,13 @@
 #include <sstream>
 #include <pthread.h>
 
+//-----timer
+#include <chrono>
+#
+#include "timer2.h"
+#include <math.h>
+//----
+
 #define NUM_THREADS 2
 
 int number_neighbors = 0;
@@ -62,6 +69,7 @@ void sendTable(Router&, Router&);
 void *LaunchServer(void *);
 //int create_threads (Router *, int);
 int create_threads (std::map<string, Router> &, int);
+int start_timer();
 
 int main(int argc, char const *argv[])
 {
@@ -374,13 +382,19 @@ int create_threads (std::map<string, Router> & nodes, int num_threads) {
    }
    int j=0;
    //for( i = 0; i < num_threads; i++ ) {
-   for (auto const& [key, val] : nodes){
-	   cout << "client : creating thread, " << j+num_threads << endl;
-       td_client[j].thread_id = j+num_threads;
-       td_client[j].router = val;
-      rc1 = pthread_create(&threads_client[j], NULL, LaunchClient, (void *)&td_client[j]);
-      j++;
-   }
+   //while(1){
+	//   while(!start_timer()){
+		   j=0;
+		   for (auto const& [key, val] : nodes){
+			   cout << "client : creating thread, " << j+num_threads << endl;
+			   td_client[j+num_threads].thread_id = j+num_threads;
+			   td_client[j+num_threads].router = val;
+			  rc1 = pthread_create(&threads_client[j+num_threads], NULL, LaunchClient, (void *)&td_client[j+num_threads]);
+			  j++;
+		   }
+	  // }
+
+   //}
 
       if (rc || rc1) {
          cout << "Error:unable to create thread," << rc << endl;
@@ -389,4 +403,26 @@ int create_threads (std::map<string, Router> & nodes, int num_threads) {
 
    pthread_exit(NULL);
 }
+
+int start_timer() {
+	int start = clock();
+	//std::cout << start << endl;
+
+	double diff, fractpart, intpart;
+
+	do{
+	  // do stuff
+
+
+	  diff = (clock()-start)/((double)(CLOCKS_PER_SEC));
+	  fractpart = modf (diff , &intpart);
+	  //printf ("%f = %f + %f \n", diff, intpart, fractpart);
+	  if (fractpart == 0.0)
+		  std::cout << intpart <<" seconds." <<endl;
+	} while (diff < 3.0);//lower than 3 seconds
+	//time is up here...
+
+	return 0;
+}
+
 
