@@ -23,6 +23,7 @@
 #include <iterator>
 #include <vector>
 #define BUFLEN 2048
+const unsigned INF = 999999999;
 //#define MSGS 5	/* number of messages to send */
 using namespace std;
 
@@ -103,7 +104,7 @@ int Router::start_sender_router(void) //client
 	for (auto const& [key, val] : this->parameters.routingTable){
 		printf("Sending packet %d to %s port %d\n", i, server, SERVICE_PORT);
 		//sprintf(buf, "This is packet %d", i);
-		sprintf(buf, "%s %s %d",val.destination.c_str(), val.nextNode.c_str(), val.cost); //destination nextHop cost
+		sprintf(buf, "%s %s %d %s",val.destination.c_str(), val.nextNode.c_str(), val.cost, this->parameters.myRouterName.c_str()); //destination nextHop cost
 		if (sendto(fd, buf, strlen(buf), 0, (struct sockaddr *)&remaddr, slen)==-1) {
 			perror("sendto");
 			exit(1);
@@ -168,7 +169,9 @@ int Router::start_receiver_router(void) //server
 		if (recvlen > 0) {
 			buf[recvlen] = 0;
 			printf("received message: \"%s\" (%d bytes)\n", buf, recvlen);
-			vector<std::string> current = parseMessage(buf);
+			vector<std::string> current = parseMessage(buf); //retrieve current destinatin, hop, cost, whoSentIt
+			updateTable(current);//update the table
+			//std::cout<<current.at(3);
 		}
 		else
 			printf("uh oh - something went wrong!\n");
@@ -183,8 +186,29 @@ int Router::start_receiver_router(void) //server
 
 
 
+
+//void updateTable(Router& source, Router & destination){
+//hopUpdate: destination, nextHop, cost, senderName
+void Router::updateTable(vector<string> hopUpdate){
+	//std::map<string, RouteTableValue> &rtSource = source.parameters.routingTable;
+	std::map<string, RouteTableValue> &rtDestination = this->parameters.routingTable;
+	//std::map<string, RouteTableValue>::iterator it = rtSource.begin();
+	//for(it;it!=rtSource.end();it++){
+	if (rtDestination.find(hopUpdate.at(0))==rtDestination.end()){
+		rtDestination[hopUpdate.at(0)]=RouteTableValue(hopUpdate.at(0), hopUpdate.at(0), INF);
+	}/*else if (rtDestination[it->first].cost==INF){
+		std::cout <<"\nFound INF\n" << it->first << " "<< destination.parameters.routingTable[it->first].cost;
+		destination.parameters.routingTable[it->first]=RouteTableValue(it->first, source.parameters.myRouterName, (it->second.cost) + destination.parameters.routingTable[source.parameters.myRouterName].cost);
+	}*/
+	else if (rtDestination[hopUpdate.at(0)].cost> std::stoi(hopUpdate.at(2)) + this->parameters.routingTable[hopUpdate.at(0)].cost){
+		this->parameters.routingTable[hopUpdate.at(0)]=RouteTableValue(hopUpdate.at(0), hopUpdate.at(3), std::stoi(hopUpdate.at(2)) + this->parameters.routingTable[hopUpdate.at(3)].cost);
+	}
+}
+
+
+
 vector<std::string> Router::parseMessage (unsigned char buf[]){
-	memset(buf, 0, sizeof(buf));
+	//memset(buf, 0, sizeof(buf));
 	stringstream str;
 	str<< buf;
 	//string str =buf;

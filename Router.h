@@ -68,6 +68,7 @@ class Router
 			this->parameters.myRouterName = name;
 		}
 		vector<std::string> parseMessage (unsigned char[]);
+		void updateTable(vector<string>);
 		void printRouterInfo();
 
 		int start_sender_router(void);//client

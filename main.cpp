@@ -358,6 +358,7 @@ void *LaunchClient(void *threadarg_client) {
    cout << " Launched client with Thread ID, " << my_data_client ->router.parameters.myRouterName << endl;
    my_data_client->router.start_sender_router();
 
+
    pthread_exit(NULL);
 
 }
@@ -382,8 +383,8 @@ int create_threads (std::map<string, Router> & nodes, int num_threads) {
    }
    int j=0;
    //for( i = 0; i < num_threads; i++ ) {
-   //while(1){
-	//   while(!start_timer()){
+   while(1){
+	   while(!start_timer()){
 		   j=0;
 		   for (auto const& [key, val] : nodes){
 			   cout << "client : creating thread, " << j+num_threads << endl;
@@ -392,9 +393,12 @@ int create_threads (std::map<string, Router> & nodes, int num_threads) {
 			  rc1 = pthread_create(&threads_client[j+num_threads], NULL, LaunchClient, (void *)&td_client[j+num_threads]);
 			  j++;
 		   }
-	  // }
 
-   //}
+		   nodes["a"].printRouterInfo();
+	   }
+
+
+   }
 
       if (rc || rc1) {
          cout << "Error:unable to create thread," << rc << endl;
@@ -419,7 +423,7 @@ int start_timer() {
 	  //printf ("%f = %f + %f \n", diff, intpart, fractpart);
 	  if (fractpart == 0.0)
 		  std::cout << intpart <<" seconds." <<endl;
-	} while (diff < 3.0);//lower than 3 seconds
+	} while (diff < 15.0);//lower than 3 seconds
 	//time is up here...
 
 	return 0;
