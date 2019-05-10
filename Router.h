@@ -29,42 +29,49 @@ void sendBadHeader(int socket);
 
 struct Router_Params {
 
-  int PORT;
-  static int const BUFFER_SIZE = 1024;
+  static int const PORTSEND=21234;
+  static int const PORTRECEIVE= 21235;
+  //static int const BUFFER_SIZE = 1024;
 
   int sockfd;
   std::map<std::string, Edge> neighbourList;
   std::map<string, RouteTableValue> routingTable;
   string myRouterIPAddress;
   string myRouterName;
+  bool sending=false;
+  bool receiving=false;
 };
 
 
 class Router
 {
 	private:
-		string m;
-	public:
-		int PORT;
-		static int const BUFFER_SIZE = 1024;
+		//string m;
 
-		int sockfd;
-		std::map<std::string, Edge> neighbourList;
-		std::map<string, RouteTableValue> routingTable;
-		string myRouterIPAddress;
-		string myRouterName;
+	public:
+		Router_Params parameters;
+		//int PORT;
+		//static int const BUFFER_SIZE = 1024;
+
+		//int sockfd;
+		//std::map<std::string, Edge> neighbourList;
+		//std::map<string, RouteTableValue> routingTable;
+		//string myRouterIPAddress;
+		//string myRouterName;
 
 		Router(){}
 		Router(std::map<std::string, Edge> nl, std::map<string, RouteTableValue> rt,  std::string ip, std::string name){
-			this->neighbourList = nl;
-			this->routingTable = rt;
-			this->myRouterIPAddress = ip;
-			this->myRouterName = name;
+			this->parameters.neighbourList = nl;
+			this->parameters.routingTable = rt;
+			this->parameters.myRouterIPAddress = ip;
+			this->parameters.myRouterName = name;
 		}
-
+		void printRouterInfo();
+		int start_sender_router(void);//client
+		int start_receiver_router(void);
 		void updateCost(std::map<string, RouteTableValue> rt){
 
-		}
+		};
 
 	};
 

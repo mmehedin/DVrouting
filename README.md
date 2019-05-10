@@ -22,3 +22,5 @@ bash setupInterfaces.sh
 Run the code:
 ./setInterfaces
 
+All:
+clear && make clean && make &&  ./setInterfaces

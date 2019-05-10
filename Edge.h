@@ -28,7 +28,7 @@ public:
 			this->cost = c;
 		}
 		else{
-			perror("file not find. Please check the file name.");
+			perror("neighbor not found on this edge.");
 			exit(EXIT_FAILURE);
 		}
 

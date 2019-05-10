@@ -5,6 +5,17 @@
  *      Author: Mihai
  */
 /*Install boost from here: https://www.boost.org/users/download/*/
+
+#include "Router.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include "port.h"
+#include <arpa/inet.h>
+
+
 #include "other.h"
 #include "Router.h"
 #include "Edge.h"
@@ -20,6 +31,9 @@
 #include <stdio.h>
 #include<set>
 #include <sstream>
+#include <pthread.h>
+
+#define NUM_THREADS 2
 
 int number_neighbors = 0;
 std::string current_name="";
@@ -36,19 +50,23 @@ using namespace std;
 //namespace fs = boost::filesystem;
 
 const regex pat ("[\\w.]+");
-set<string> routersMaps; //list of files a.dat with cost and links
+set<string> routersFiles; //list of files a.dat with cost and links
 set<string> routerNames;
 std::map<string, Router> nodes; //list of existing nodes
 void count_files(std::string directory, std::string ext);
 std::map<std::string, Edge> getCostMap(std::sregex_iterator i, std::smatch match);
-void getRoutingTable(std::map<std::string, Edge> costMap, map<string, RouteTableValue> &);
+void getRoutingTable(std::map<std::string, Edge> costMap, map<string, RouteTableValue> &, std::string);
 void visRoutingTable();
 void exchangeTables();
+void sendTable(Router&, Router&);
+void *LaunchServer(void *);
+//int create_threads (Router *, int);
+int create_threads (std::map<string, Router> &, int);
 
 int main(int argc, char const *argv[])
 {
-	struct Router_Params rout;
-	rout.PORT = atoi(argv[2]);//port of communication between routers UDP
+	//struct Router_Params rout;
+	//rout.PORT = atoi(argv[2]);//port of communication between routers UDP
 
 	std::cout << "INF value " << INF << "\n\n";
 
@@ -59,25 +77,25 @@ int main(int argc, char const *argv[])
 	// declaring iterators
 	cout<<"\n.dat files found: "<<  "\n";
 	set<string>::iterator it1;
-	for (it1 = routersMaps.begin(); it1!=routersMaps.end();  ++it1)
+	for (it1 = routersFiles.begin(); it1!=routersFiles.end();  ++it1)
 	        cout << *it1 << " ";//.dat files found
 	//std::cout <<  routersMaps << std::endl;
 
 	//number of routers in the network
-	number_routers = routersMaps.size();
+	number_routers = routersFiles.size();
 	cout<<"\nNumber of routers in the network: "<< number_routers << "\n";
 
 	//creating interfaces for all the routers
 	for (int i = 1; i<=number_routers;++i){
-		std::string ip = FIRST_IF + to_string(i) + SECOND_IF;
+		std::string ifconfig_ip = FIRST_IF + to_string(i) + SECOND_IF;
 		//strcpy(ip, (to_string(i)).c_str());
 		//const char *last;
 		//last = ;
 		//strcat(ip, (to_string(i)).c_str());
 		//strcat(ip, SECOND_IF);
-		cout << ip << "\n";
+		cout << ifconfig_ip << "\n";
 
-		system(ip.c_str());
+		system(ifconfig_ip.c_str());
 	}
 
 	//creating IP addresses for the routers
@@ -87,7 +105,7 @@ int main(int argc, char const *argv[])
 
 	int dig =1;
 	//std::stringstream ss;
-	for (it1 = routersMaps.begin(); it1!=routersMaps.end();  ++it1){
+	for (it1 = routersFiles.begin(); it1!=routersFiles.end();  ++it1){
 
 		//ss << dig;
 		//std::string addr = "192.168.10."+ ss.str();
@@ -101,10 +119,11 @@ int main(int argc, char const *argv[])
 		//ss.clear();
 	}
 	map<string, string>::iterator it2 = nameToIp.begin();
+	cout <<  "\nRouter name " << " => " << " ip " << '\n';
 	for ( it2 = nameToIp.begin(); it2 != nameToIp.end();  ++it2)
-		        cout <<  it2->first << " => " << it2->second << '\n';;
+		        cout <<  it2->first << " => " << it2->second << '\n';
 
-	for (it1 = routersMaps.begin(); it1!=routersMaps.end();  ++it1){
+	for (it1 = routersFiles.begin(); it1!=routersFiles.end();  ++it1){
 			//get neighbors
 			string content = freader(exec_path+"/"+string(*it1));
 			std::match_results< std::string::const_iterator > mr;
@@ -127,37 +146,54 @@ int main(int argc, char const *argv[])
 			//create node router
 			//Router(neighbor link costs, routing table, ip, name)
 			std::map<string, RouteTableValue> routingTableMap;
-			getRoutingTable(costMap,routingTableMap);
+			getRoutingTable(costMap,routingTableMap, current_name);
 			//Router(std::map<std::string, Edge> nl, std::map<string, RouteTableValue> rt,  std::string ip, std::string name)
 
 			Router r(costMap, routingTableMap, nameToIp[current_name], current_name);
 			nodes[current_name] = r;
+			r.printRouterInfo();
 
 	}
 	//all other values receive infinite except for self which receives 0
 	std::set<string>::iterator it = routerNames.begin();
 	std::map<string,Router>::iterator it3 = nodes.begin();
 
+	//add non neighbouring nodes to the table
 	for (it3 = nodes.begin(); it3 != nodes.end(); it3++)
 		{
-			std::map<string, RouteTableValue> r = it3 ->second.routingTable;
+			std::map<string, RouteTableValue> rt = it3 ->second.parameters.routingTable;
 			//r[it3 -> first] = RouteTableValue(it3 -> first, it3 -> first, 0);
-			std::map<string, RouteTableValue>::iterator it4 = r.begin();
+			std::map<string, RouteTableValue>::iterator it4 = rt.begin();
 			std::cout<< "Current node update: " << it3->first<<"\n\n";
 
 			for (it = routerNames.begin(); it != routerNames.end(); it++)
 			{
 				//else if (nodes.find(it->first) == nodes.end())//not found
-				if (*it==it3->first)
-					nodes[it3->first].routingTable[*it] = RouteTableValue(*it, *it, 0);
-				else if (r.find(*it) == r.end())//not found
+				//if (*it==it3->first)
+				//	nodes[it3->first].parameters.routingTable[*it] = RouteTableValue(*it, *it, 0);
+				//else
+				if (rt.find(*it) == rt.end())//not found
 				{
-					nodes[it3->first].routingTable[*it] = RouteTableValue(*it, *it, INF);
+					nodes[it3->first].parameters.routingTable[*it] = RouteTableValue(*it, *it, INF);
 				}
 				//std::cout <<nodes[it3->first].routingTable[*it].destination << " => " <<nodes[it3->first].routingTable[*it].cost << '\n';
 			}
 		}
 	visRoutingTable();
+
+	//send table source to destination
+	sendTable(nodes["c"], nodes["f"]);
+	nodes["c"].printRouterInfo();
+	nodes["f"].printRouterInfo();
+
+	sendTable(nodes["d"], nodes["f"]);
+	nodes["d"].printRouterInfo();
+	nodes["f"].printRouterInfo();
+
+
+	create_threads(nodes, number_routers);
+	//create_threads(&nodes["b"], 1);
+	//nodes["f"].start_receiver_router();
 	//std::cout << "Map of cost pairs: " << costMap <<"\n";
 	//while(!mr.empty){
 	//	std::cout << "current word: " << mr.str( 0 ) << '\n';
@@ -168,7 +204,7 @@ int main(int argc, char const *argv[])
 		 //    temp = mr.suffix().str();
 
 		 //	std::cout << "regex filname isolated is: " << file_name << endl;
-	//struct sockaddr_in address;
+	struct sockaddr_in address;
     //int sock = 0, valread;
     //struct sockaddr_in serv_addr;
 
@@ -177,10 +213,12 @@ int main(int argc, char const *argv[])
 }
 
 /**/
-void getRoutingTable(std::map<std::string, Edge> costMap, map<string, RouteTableValue> &rt){
-	//map<string, RouteTableValue> rt;
+void getRoutingTable(std::map<std::string, Edge> costMap, map<string, RouteTableValue> &rt, std::string currentNodeName){
+	//map<string, RouteTableValue> rt;//RouteTable Value : destination, nextbesthop, cost//
+	rt[currentNodeName] = RouteTableValue(currentNodeName, currentNodeName, 0);
+	//std::cout << key << " => " <<rt[key].destination << " => " <<rt[key].cost << '\n';
 	for (auto const& [key, val] : costMap){
-		rt[key] = RouteTableValue(key, key, val.cost);
+		rt[key] = RouteTableValue(val.neighbor, key, val.cost);
 		std::cout << key << " => " <<rt[key].destination << " => " <<rt[key].cost << '\n';
 	}
 	//return rt;
@@ -207,7 +245,7 @@ void count_files(std::string directory, std::string ext)
 	                if(ret==0)
 	                {
 	                    //printf("%s\t",p1);
-	                	routersMaps.insert((p1+string("."))+ext);
+	                	routersFiles.insert((p1+string("."))+ext);
 	                }
 	            }
 
@@ -242,14 +280,15 @@ void visRoutingTable(){
 
 	for (it3 = nodes.begin(); it3 != nodes.end(); it3++)
 		{
-			std::map<string, RouteTableValue> r = it3 ->second.routingTable;
+			/*std::map<string, RouteTableValue> r = it3 ->second.parameters.routingTable;
 			std::map<string, RouteTableValue>::iterator it4 = r.begin();
 
 			std::cout<< "\nNode: " << it3->first<<"\n\n";
 			for (it4 = r.begin(); it4 != r.end(); it4++)
 			{
 				std::cout <<it4->second.destination << " => " << it4->second.nextNode << " => " << it4->second.cost << '\n';
-			}
+			}*/
+		it3->second.printRouterInfo();
 		}
 }
 
@@ -263,4 +302,91 @@ void exchangeTables(){
 			}
 		}
 	}
+
 }
+
+void sendTable(Router& source, Router & destination){
+	std::map<string, RouteTableValue> &rtSource = source.parameters.routingTable;
+	std::map<string, RouteTableValue> &rtDestination = destination.parameters.routingTable;
+	std::map<string, RouteTableValue>::iterator it = rtSource.begin();
+	for(it;it!=rtSource.end();it++){
+		if (rtDestination.find(it->first)==rtDestination.end()){
+			rtDestination[it->first]=RouteTableValue(it->first, it->first,INF);
+		}/*else if (rtDestination[it->first].cost==INF){
+			std::cout <<"\nFound INF\n" << it->first << " "<< destination.parameters.routingTable[it->first].cost;
+			destination.parameters.routingTable[it->first]=RouteTableValue(it->first, source.parameters.myRouterName, (it->second.cost) + destination.parameters.routingTable[source.parameters.myRouterName].cost);
+		}*/
+		else if (rtDestination[it->first].cost> (it->second.cost) + destination.parameters.routingTable[source.parameters.myRouterName].cost){
+			destination.parameters.routingTable[it->first]=RouteTableValue(it->first, source.parameters.myRouterName, (it->second.cost) + destination.parameters.routingTable[source.parameters.myRouterName].cost);
+		}
+	}
+}
+
+struct thread_data {
+   int  thread_id;
+   //Router *router;
+   Router router;
+};
+
+//void *LaunchServer(void *threadid) {
+void *LaunchServer(void *threadarg_serv) {
+   //long tid;
+   //tid = (long)threadid;
+   struct thread_data *my_data_serv;
+   my_data_serv = (struct thread_data *) threadarg_serv;
+
+   cout << " Launched server with Thread ID, " << my_data_serv->router.parameters.myRouterName << endl;
+   my_data_serv->router.start_receiver_router();
+
+   pthread_exit(NULL);
+}
+//void *LaunchServer(void *threadid) {
+void *LaunchClient(void *threadarg_client) {
+   //long tid;
+   //tid = (long)threadid;
+   struct thread_data *my_data_client;
+   my_data_client = (struct thread_data *) threadarg_client;
+
+   cout << " Launched client with Thread ID, " << my_data_client ->router.parameters.myRouterName << endl;
+   my_data_client->router.start_sender_router();
+
+   pthread_exit(NULL);
+
+}
+
+int create_threads (std::map<string, Router> & nodes, int num_threads) {
+   pthread_t threads_server[num_threads];//[NUM_THREADS];
+   pthread_t threads_client[num_threads];//[NUM_THREADS];
+   struct thread_data td_server[num_threads];
+   struct thread_data td_client[num_threads];
+   int rc, rc1;
+   int i=0;
+
+   //for( i = 0; i < NUM_THREADS; i++ ) {
+   //for( i = 0; i < num_threads; i++ ) {
+   for (auto const& [key, val] : nodes){
+      cout << "server : creating thread, " << i << endl;
+      cout << "ip="<< val.parameters.myRouterIPAddress<<endl;
+      td_server[i].thread_id = i;
+      td_server[i].router = val;
+      rc = pthread_create(&threads_server[i], NULL, LaunchServer, (void *)&td_server[i]);
+      i++;
+   }
+   int j=0;
+   //for( i = 0; i < num_threads; i++ ) {
+   for (auto const& [key, val] : nodes){
+	   cout << "client : creating thread, " << j+num_threads << endl;
+       td_client[j].thread_id = j+num_threads;
+       td_client[j].router = val;
+      rc1 = pthread_create(&threads_client[j], NULL, LaunchClient, (void *)&td_client[j]);
+      j++;
+   }
+
+      if (rc || rc1) {
+         cout << "Error:unable to create thread," << rc << endl;
+         exit(-1);
+      }
+
+   pthread_exit(NULL);
+}
+
