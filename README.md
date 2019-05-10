@@ -22,10 +22,10 @@ bash setupInterfaces.sh
 Run the code:
 ./setInterfaces
 
-All:
+#####All:
 clear && make clean && make &&  ./setInterfaces
 
-Ports cleanup MacOS:
+#####Ports cleanup MacOS:
 
 kill:
 sudo lsof -n -i UDP:44445 | grep 44445 | awk '{ print $2 }' | xargs kill
