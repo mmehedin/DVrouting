@@ -10,8 +10,7 @@ CPP_SRCS += \
 ../regex.cpp 
 
 O_SRCS += \
-../freader.o \
-../main.o 
+../freader.o 
 
 OBJS += \
 ./Router.o \

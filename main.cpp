@@ -296,7 +296,7 @@ void visRoutingTable(){
 			{
 				std::cout <<it4->second.destination << " => " << it4->second.nextNode << " => " << it4->second.cost << '\n';
 			}*/
-		it3->second.printRouterInfo();
+		(it3->second).printRouterInfo();
 		}
 }
 
@@ -393,7 +393,7 @@ int create_threads (std::map<string, Router> & nodes, int num_threads) {
 			  rc1 = pthread_create(&threads_client[j+num_threads], NULL, LaunchClient, (void *)&td_client[j+num_threads]);
 			  j++;
 		   }
-
+		   //sleep(2000);
 		   nodes["a"].printRouterInfo();
 	   }
 
